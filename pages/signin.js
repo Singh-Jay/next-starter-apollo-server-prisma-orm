@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { gql } from '@apollo/client';
-import { useMutation, useApolloClient } from '@apollo/client';
-import { getErrorMessage } from '../lib/form';
+import { useMutation } from '@apollo/client';
+import { getError } from '../lib/form';
 import Field from '../components/field';
 import { useAuthContext } from '../lib/context/auth-context';
 import Layout from '../components/layout/Layout';
 import { useNotAuth } from '../lib/hooks/useNotAuth';
-
+import { MeQuery } from '../lib/utils/graphql';
 const SignInMutation = gql`
 	mutation SignInMutation($email: String!, $password: String!) {
 		signIn(input: { email: $email, password: $password }) {
@@ -21,11 +21,10 @@ const SignInMutation = gql`
 `;
 
 function SignIn() {
-	// useNotAuth();
-	const client = useApolloClient();
+	useNotAuth();
 	const { signin } = useAuthContext();
 	const [signIn] = useMutation(SignInMutation);
-	const [errorMsg, setErrorMsg] = useState();
+	const [error, setError] = useState({});
 	const router = useRouter();
 
 	async function handleSubmit(event) {
@@ -35,13 +34,20 @@ function SignIn() {
 		const passwordElement = event.currentTarget.elements.password;
 
 		try {
-			await client.resetStore();
 			const {
 				data: { signIn: resData },
 			} = await signIn({
 				variables: {
 					email: emailElement.value,
 					password: passwordElement.value,
+				},
+				update: (cache, { data }) => {
+					cache.writeQuery({
+						query: MeQuery,
+						data: {
+							me: data?.signIn,
+						},
+					});
 				},
 			});
 			if (resData) {
@@ -54,7 +60,7 @@ function SignIn() {
 			}
 		} catch (error) {
 			console.log(error);
-			setErrorMsg(getErrorMessage(error));
+			setError(getError(error));
 		}
 	}
 
@@ -62,9 +68,9 @@ function SignIn() {
 		<Layout>
 			<h1>Sign In</h1>
 			<form onSubmit={handleSubmit}>
-				{errorMsg && <p>{errorMsg}</p>}
-				<Field name='email' type='email' autoComplete='email' required label='Email' />
-				<Field name='password' type='password' autoComplete='password' required label='Password' />
+				{error.general && <p>{error.general}</p>}
+				<Field name='email' type='email' autoComplete='email' label='Email' required error={error.email} />
+				<Field name='password' type='password' autoComplete='password' label='Password' required error={error.password} />
 				<button type='submit'>Sign in</button> or{' '}
 				<Link href='/signup'>
 					<a>Sign up</a>

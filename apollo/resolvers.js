@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { AuthenticationError, UserInputError } = require('apollo-server-micro');
 const checkAuth = require('../lib/utils/check-auth');
 import prisma from '../lib/prisma';
+import { validateSigninInput, validateSignupInput } from '../lib/utils/validators';
 
 const SECRET_KEY = process.env.JWT_SECRET;
 function generateToken(user) {
@@ -20,19 +21,25 @@ function generateToken(user) {
 export const resolvers = {
 	Query: {
 		me(_parent, _args, context, _info) {
-			const user = checkAuth(context);
-			// console.log('AUTH USER', user);
+			let user = null;
+			try {
+				user = checkAuth(context);
+				// console.log('AUTH USER', user);
+				return user;
+			} catch (error) {
+				// console.log(error.message);
+			}
+
 			return user;
 		},
 	},
 	Mutation: {
 		async signIn(_, { input: { email, password } }) {
-			// const { errors, valid } = validateLoginInput(email, password);
+			const { errors, valid } = validateSigninInput(email, password);
 
-			// if (!valid) {
-			// 	throw new UserInputError('Errors', { errors });
-			// }
-			const errors = {};
+			if (!valid) {
+				throw new UserInputError('Errors', { errors });
+			}
 			const user = await prisma.user.findUnique({ where: { email } });
 			if (!user) {
 				console.log('Wrong crendetials');
@@ -54,13 +61,13 @@ export const resolvers = {
 				token,
 			};
 		},
-		async signUp(_, { input: { name, email, password, confirmPassword } }) {
+		async signUp(_, { input: { name, email, password } }) {
 			// Validate user data
-			// const { valid, errors } = validateRegisterInput(name, email, password, confirmPassword);
-			// if (!valid) {
-			// 	throw new UserInputError('Errors', { errors });
-			// }
-			// TODO: Make sure user doesnt already exist
+			const { valid, errors } = validateSignupInput(name, email, password);
+			if (!valid) {
+				throw new UserInputError('Errors', { errors });
+			}
+			// Make sure user doesnt already exist
 			try {
 				const existingUser = await prisma.user.findUnique({ where: { email } });
 				if (existingUser) {

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { gql, useMutation, useApolloClient } from '@apollo/client';
-import { getErrorMessage } from '../lib/form';
+import { gql, useMutation } from '@apollo/client';
+import { getError } from '../lib/form';
 import Field from '../components/field';
 import { useAuthContext } from '../lib/context/auth-context';
 import Layout from '../components/layout/Layout';
+import { MeQuery } from '../lib/utils/graphql';
+import { useNotAuth } from '../lib/hooks/useNotAuth';
 const SignUpMutation = gql`
 	mutation SignUpMutation($name: String!, $email: String!, $password: String!) {
 		signUp(input: { name: $name, email: $email, password: $password }) {
@@ -17,10 +19,10 @@ const SignUpMutation = gql`
 	}
 `;
 export default function signup() {
-	const client = useApolloClient();
+	useNotAuth();
 	const { signin } = useAuthContext();
 	const [signUp] = useMutation(SignUpMutation);
-	const [errorMsg, setErrorMsg] = useState();
+	const [error, setError] = useState({});
 	const router = useRouter();
 	async function handleSubmit(event) {
 		event.preventDefault();
@@ -29,7 +31,6 @@ export default function signup() {
 		const passwordElement = event.currentTarget.elements.password;
 
 		try {
-			await client.resetStore();
 			const {
 				data: { signUp: resData },
 			} = await signUp({
@@ -38,23 +39,32 @@ export default function signup() {
 					email: emailElement.value,
 					password: passwordElement.value,
 				},
+				update: (cache, { data }) => {
+					console.log(data);
+					cache.writeQuery({
+						query: MeQuery,
+						data: {
+							me: data?.signUp,
+						},
+					});
+				},
 			});
 			if (resData) {
 				signin(resData.id, resData.name, resData.role, resData.token);
 				await router.push('/');
 			}
 		} catch (error) {
-			setErrorMsg(getErrorMessage(error));
+			setError(getError(error));
 		}
 	}
 	return (
 		<Layout>
 			<h1>Sign Up</h1>
 			<form onSubmit={handleSubmit}>
-				{errorMsg && <p>{errorMsg}</p>}
-				<Field name='name' type='text' autoComplete='name' required label='Name' />
-				<Field name='email' type='email' autoComplete='email' required label='Email' />
-				<Field name='password' type='password' autoComplete='password' required label='Password' />
+				{error.general && <p>{error.general}</p>}
+				<Field name='name' type='text' autoComplete='name' required label='Name' error={error.name} />
+				<Field name='email' type='email' autoComplete='email' required label='Email' error={error.email} />
+				<Field name='password' type='password' autoComplete='password' required label='Password' error={error.password} />
 				<button type='submit'>Sign up</button> or{' '}
 				<Link href='/signin'>
 					<a>Sign in</a>

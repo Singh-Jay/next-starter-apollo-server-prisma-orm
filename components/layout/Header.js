@@ -9,8 +9,8 @@ export default function Header() {
 	const client = useApolloClient();
 	const router = useRouter();
 	const signOutHandler = async () => {
-		await client.resetStore();
 		signout();
+		await client.resetStore();
 		await router.push('/signin');
 	};
 	return (
